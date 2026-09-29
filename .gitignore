@@ -1,0 +1,36 @@
+# Environment variables & secrets
+.env
+*.env
+!.env.example
+
+# Node dependencies & build outputs
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python / Virtual environment files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Uploaded files / temp storage
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# IDE and OS generated files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
