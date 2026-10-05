@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # ─── LLM Factory ──────────────────────────────────────────────────────────────
 
-def get_chat_llm(streaming: bool = True, fallback: bool = False) -> ChatOpenAI:
+def get_chat_llm(streaming: bool = True, fallback: bool = False, model: Optional[str] = None) -> ChatOpenAI:
     """
     Return an LLM instance based on configured provider.
 
@@ -46,7 +46,7 @@ def get_chat_llm(streaming: bool = True, fallback: bool = False) -> ChatOpenAI:
 
     if provider == "groq":
         # Groq uses OpenAI-compatible API — just swap base_url and api_key
-        model = settings.groq_model
+        model = "openai/gpt-oss-20b" if fallback else (model or settings.groq_model)
         return ChatOpenAI(
             model=model,
             api_key=settings.groq_api_key,
@@ -58,7 +58,7 @@ def get_chat_llm(streaming: bool = True, fallback: bool = False) -> ChatOpenAI:
         )
 
     # Default: OpenAI
-    model = settings.openai_fallback_model if fallback else settings.openai_primary_model
+    model = settings.openai_fallback_model if fallback else (model or settings.openai_primary_model)
     return ChatOpenAI(
         model=model,
         api_key=settings.openai_api_key,
@@ -75,6 +75,7 @@ async def stream_chat(
     conversation_id: str,
     user_message: str,
     enable_rag: bool = False,
+    model: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """
     Async generator that yields SSE-compatible JSON token strings.
@@ -108,7 +109,7 @@ async def stream_chat(
         "input": user_message,
     }
 
-    llm = get_chat_llm(streaming=True)
+    llm = get_chat_llm(streaming=True, model=model)
     chain = chat_prompt | llm | StrOutputParser()
 
     full_response = ""
@@ -116,6 +117,8 @@ async def stream_chat(
 
     try:
         async for chunk in chain.astream(prompt_vars):
+            if not chunk:
+                continue
             full_response += chunk
             stream_ok = True
             yield json.dumps({"type": "token", "content": chunk})
@@ -127,6 +130,8 @@ async def stream_chat(
             llm_fallback = get_chat_llm(streaming=True, fallback=True)
             chain_fallback = chat_prompt | llm_fallback | StrOutputParser()
             async for chunk in chain_fallback.astream(prompt_vars):
+                if not chunk:
+                    continue
                 full_response += chunk
                 yield json.dumps({"type": "token", "content": chunk})
         except Exception as fallback_exc:
@@ -153,6 +158,7 @@ async def stream_agent(
     conversation_id: str,
     user_message: str,
     tool_names: Optional[List[str]] = None,
+    model: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """
     Async generator yielding agent thoughts, tool calls, tool results,
@@ -163,7 +169,7 @@ async def stream_agent(
     tools = get_tools(tool_names)
 
     # Agent uses non-streaming LLM since it processes tool results before answering
-    llm = get_chat_llm(streaming=False)
+    llm = get_chat_llm(streaming=False, model=model)
     agent = create_openai_tools_agent(llm=llm, tools=tools, prompt=agent_prompt)
     executor = AgentExecutor(
         agent=agent,

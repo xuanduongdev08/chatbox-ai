@@ -22,7 +22,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user_id
 from app.db.postgres import get_db
 from app.models.models import Conversation, Message
-from app.schemas.schemas import ConversationDetail, ConversationOut
+from app.schemas.schemas import ConversationDetail, ConversationOut, ConversationUpdate
 
 router = APIRouter(prefix="/history", tags=["History"])
 
@@ -52,7 +52,7 @@ async def list_conversations(
         )
         .outerjoin(msg_count_sq, Conversation.id == msg_count_sq.c.conversation_id)
         .where(Conversation.user_id == uuid.UUID(user_id))
-        .order_by(Conversation.updated_at.desc())
+        .order_by(Conversation.pinned.desc(), Conversation.updated_at.desc())
         .limit(limit)
         .offset(offset)
     )
@@ -90,6 +90,32 @@ async def get_conversation(
     # Sort messages chronologically (selectinload doesn't guarantee order)
     if conv.messages:
         conv.messages.sort(key=lambda m: m.created_at)
+    return conv
+
+
+@router.patch("/{conv_id}", response_model=ConversationOut)
+async def update_conversation(
+    conv_id: uuid.UUID,
+    payload: ConversationUpdate,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rename and/or pin/unpin a conversation."""
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == conv_id,
+            Conversation.user_id == uuid.UUID(user_id),
+        )
+    )
+    conv = result.scalar_one_or_none()
+    if conv is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    if payload.title is not None:
+        conv.title = payload.title.strip()
+    if payload.pinned is not None:
+        conv.pinned = payload.pinned
+    await db.commit()
+    await db.refresh(conv)
     return conv
 
 

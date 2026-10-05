@@ -1,13 +1,30 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Chatbot – Intelligent Assistant</title>
-    <meta name="description" content="Production-ready AI chatbot with RAG, memory, and agentic tool calling." />
+    <title>DGXAI — Trợ lý AI thông minh</title>
+    <meta name="description" content="DGXAI là trợ lý AI thông minh: trò chuyện, tìm kiếm web, phân tích tài liệu (RAG) và tác tử tự động với nhiều mô hình Groq." />
+    <meta name="theme-color" content="#131314" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Apply saved theme before first paint (prevents light/dark flash) -->
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('dgxai_theme') || 'system';
+          var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+          var lang = localStorage.getItem('dgxai_lang') || 'vi';
+          document.documentElement.setAttribute('lang', lang);
+        } catch (e) {}
+      })();
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@300..700&family=Google+Sans+Code:wght@400..600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="root"></div>

@@ -14,7 +14,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import agent, chat, document, history
+from app.api.v1 import agent, auth, chat, document, history
+from app.api.v1 import models as models_api
 from app.core.config import settings
 from app.db.postgres import Base, engine
 from app.db.redis import close_redis
@@ -26,11 +27,23 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
-    logger.info("Starting up AI Chatbot Backend…")
+    logger.info("Starting up DGXAI Backend…")
 
     # Create all DB tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Lightweight in-place migration for existing databases (create_all never alters tables)
+        from sqlalchemy import text
+        for stmt in (
+            "ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(64)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512)",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(20) NOT NULL DEFAULT 'local'",
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_google_id_uq ON users (google_id)",
+            "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT false",
+            "ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachments TEXT",
+        ):
+            await conn.execute(text(stmt))
     logger.info("Database tables ready.")
 
     # Seed default dev user (dev environments only)
@@ -60,7 +73,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI Chatbot API",
+    title="DGXAI API",
     description="Production-ready AI Chatbot with RAG, Memory, and Agentic Tool Calling",
     version="1.0.0",
     lifespan=lifespan,
@@ -75,10 +88,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Conversation-Id"],
 )
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 API_PREFIX = "/api/v1"
+app.include_router(auth.router, prefix=API_PREFIX)
+app.include_router(models_api.router, prefix=API_PREFIX)
 app.include_router(chat.router, prefix=API_PREFIX)
 app.include_router(document.router, prefix=API_PREFIX)
 app.include_router(history.router, prefix=API_PREFIX)

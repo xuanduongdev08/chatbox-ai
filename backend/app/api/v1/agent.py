@@ -59,6 +59,7 @@ async def _agent_sse_generator(
     message: str,
     tool_names: list,
     background_tasks: BackgroundTasks,
+    model: str | None = None,
 ):
     """Wrap stream_agent into proper SSE format and schedule DB persistence."""
     final_content = ""
@@ -66,6 +67,7 @@ async def _agent_sse_generator(
         conversation_id=conversation_id,
         user_message=message,
         tool_names=tool_names,
+        model=model,
     ):
         try:
             parsed = json.loads(chunk)
@@ -111,7 +113,7 @@ async def agent_stream(
     await db.commit()
 
     return StreamingResponse(
-        _agent_sse_generator(conv_id, request.message, request.tools or [], background_tasks),
+        _agent_sse_generator(conv_id, request.message, request.tools or [], background_tasks, request.model),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -156,6 +158,7 @@ async def agent_complete(
         conversation_id=conv_id,
         user_message=request.message,
         tool_names=request.tools,
+        model=request.model,
     ):
         try:
             data = json.loads(chunk_str)

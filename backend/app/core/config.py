@@ -38,7 +38,10 @@ class Settings(BaseSettings):
     # ── JWT / Security ────────────────────────────────────────────────────
     secret_key: str = "change-me-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 60 * 24 * 7
+
+    # ── Google OAuth ──────────────────────────────────────────────────────
+    google_client_id: str = ""
 
     # ── External APIs ─────────────────────────────────────────────────────
     tavily_api_key: str = ""
@@ -55,7 +58,7 @@ class Settings(BaseSettings):
     sliding_window_size: int = 20
     summary_trigger_count: int = 40
     upload_dir: str = "/app/uploads"
-    max_file_size_mb: int = 50
+    max_file_size_mb: int = 2048  # Default 2GB for comfortable large file uploads
 
     @field_validator("cors_origins", mode="before")
     @classmethod

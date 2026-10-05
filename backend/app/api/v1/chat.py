@@ -60,6 +60,7 @@ async def _sse_generator(
     message: str,
     enable_rag: bool,
     background_tasks: BackgroundTasks,
+    model: str | None = None,
 ):
     """Wrap stream_chat into proper SSE format and schedule DB persistence."""
     final_content = ""
@@ -67,6 +68,7 @@ async def _sse_generator(
         conversation_id=conversation_id,
         user_message=message,
         enable_rag=enable_rag,
+        model=model,
     ):
         # Capture the final full response from the `done` event
         try:
@@ -95,27 +97,43 @@ async def chat_stream(
     """
     conv_id = str(request.conversation_id or uuid.uuid4())
 
+    title_text = request.message.strip() or (request.attachments and request.attachments[0].get("name")) or "Cuộc trò chuyện mới"
+
     if not request.conversation_id:
         conv = Conversation(
             id=uuid.UUID(conv_id),
             user_id=uuid.UUID(user_id),
-            title=request.message[:60],
+            title=title_text[:60],
             message_count=0,
         )
         db.add(conv)
         await db.flush()
 
+    user_msg_content = request.message
+    if not user_msg_content and request.attachments:
+        names = ", ".join([a.get("name", "tệp") for a in request.attachments])
+        user_msg_content = f"Tệp đính kèm: {names}"
+
     # Persist user message immediately (before streaming)
     user_msg = Message(
         conversation_id=uuid.UUID(conv_id),
         role="user",
-        content=request.message,
+        content=user_msg_content,
+        attachments=json.dumps(request.attachments) if request.attachments else None,
     )
     db.add(user_msg)
     await db.commit()
 
+    prompt_message = request.message
+    if request.attachments:
+        notes = ", ".join([a.get("name", "tệp") for a in request.attachments])
+        if prompt_message:
+            prompt_message = f"[Tài liệu/Hình ảnh đính kèm: {notes}]\n{prompt_message}"
+        else:
+            prompt_message = f"[Tài liệu/Hình ảnh đính kèm: {notes}] Hãy phân tích nội dung tệp này."
+
     return StreamingResponse(
-        _sse_generator(conv_id, request.message, request.enable_rag, background_tasks),
+        _sse_generator(conv_id, prompt_message, request.enable_rag, background_tasks, request.model),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -138,29 +156,46 @@ async def chat_complete(
     """
     conv_id = str(request.conversation_id or uuid.uuid4())
 
+    title_text = request.message.strip() or (request.attachments and request.attachments[0].get("name")) or "Cuộc trò chuyện mới"
+
     if not request.conversation_id:
         conv = Conversation(
             id=uuid.UUID(conv_id),
             user_id=uuid.UUID(user_id),
-            title=request.message[:60],
+            title=title_text[:60],
             message_count=0,
         )
         db.add(conv)
         await db.flush()
 
+    user_msg_content = request.message
+    if not user_msg_content and request.attachments:
+        names = ", ".join([a.get("name", "tệp") for a in request.attachments])
+        user_msg_content = f"Tệp đính kèm: {names}"
+
     user_msg = Message(
         conversation_id=uuid.UUID(conv_id),
         role="user",
-        content=request.message,
+        content=user_msg_content,
+        attachments=json.dumps(request.attachments) if request.attachments else None,
     )
     db.add(user_msg)
     await db.commit()
 
+    prompt_message = request.message
+    if request.attachments:
+        notes = ", ".join([a.get("name", "tệp") for a in request.attachments])
+        if prompt_message:
+            prompt_message = f"[Tài liệu/Hình ảnh đính kèm: {notes}]\n{prompt_message}"
+        else:
+            prompt_message = f"[Tài liệu/Hình ảnh đính kèm: {notes}] Hãy phân tích nội dung tệp này."
+
     full_response = ""
     async for chunk_str in stream_chat(
         conversation_id=conv_id,
-        user_message=request.message,
+        user_message=prompt_message,
         enable_rag=request.enable_rag,
+        model=request.model,
     ):
         try:
             data = json.loads(chunk_str)

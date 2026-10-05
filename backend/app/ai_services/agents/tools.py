@@ -46,7 +46,7 @@ async def web_search(query: str) -> str:
     Returns:
         A formatted string of search results with titles, URLs, and snippets.
     """
-    if not settings.tavily_api_key:
+    if not settings.tavily_api_key or "your-tavily" in settings.tavily_api_key:
         return await _duckduckgo_search(query)
 
     try:
@@ -77,8 +77,8 @@ async def web_search(query: str) -> str:
         return "\n\n".join(lines)
 
     except Exception as exc:
-        logger.error("Tavily search failed: %s", exc)
-        return f"Web search failed: {exc}"
+        logger.warning("Tavily search failed (%s), falling back to DuckDuckGo", exc)
+        return await _duckduckgo_search(query)
 
 
 async def _duckduckgo_search(query: str) -> str:

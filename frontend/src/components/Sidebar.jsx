@@ -1,128 +1,245 @@
 /**
- * Sidebar — AIZOX design system.
- * Mirrors section-menu-left from DESIGN/aizox.vercel.app/index.html:
- *   - Logo box with icon + text
- *   - Search bar
- *   - New Chat button
- *   - Conversation history list with delete action
- *   - Bottom footer with social links + copyright
+ * Sidebar — Gemini-style: collapsible, grouped history (pinned / today / 7 days / older),
+ * per-chat menu (pin, rename, delete), settings popover (theme + language).
  */
-import { useState } from 'react';
-import { MessageSquare, Plus, Trash2, Search, Bot } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  Check, Globe, Menu, Monitor, Moon, MoreVertical, Pencil, Pin, PinOff, Search, Settings,
+  SquarePen, Sun, Trash2, X,
+} from 'lucide-react';
+import { Logo } from './Logo';
+import { useI18n, useTheme } from '../context/AppContext';
+import { useClickOutside } from '../hooks/useClickOutside';
 
-export function Sidebar({
-  conversations,
-  activeConvId,
-  onSelectConv,
-  onNewChat,
-  onDeleteConv,
-}) {
-  const [searchQuery, setSearchQuery] = useState('');
+const DAY = 24 * 60 * 60 * 1000;
 
-  const filtered = conversations.filter((c) =>
-    (c.title || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+function groupConversations(convs, t) {
+  const now = Date.now();
+  const startToday = new Date().setHours(0, 0, 0, 0);
+  const groups = [
+    { key: 'pinned', title: t('pinned'), items: [] },
+    { key: 'today', title: t('today'), items: [] },
+    { key: 'week', title: t('last7'), items: [] },
+    { key: 'older', title: t('older'), items: [] },
+  ];
+  convs.forEach((c) => {
+    const ts = new Date(c.updated_at || c.created_at).getTime();
+    if (c.pinned) groups[0].items.push(c);
+    else if (ts >= startToday) groups[1].items.push(c);
+    else if (now - ts <= 7 * DAY) groups[2].items.push(c);
+    else groups[3].items.push(c);
+  });
+  return groups.filter((g) => g.items.length);
+}
+
+function ConvItem({ conv, active, onSelect, onPin, onRename, onDelete }) {
+  const { t } = useI18n();
+  const [menu, setMenu] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const ref = useRef(null);
+  const close = useCallback(() => setMenu(false), []);
+  useClickOutside(ref, close, menu);
+
+  const startEdit = () => {
+    setMenu(false);
+    setDraft(conv.title || '');
+    setEditing(true);
+  };
+  const commit = () => {
+    const v = draft.trim();
+    setEditing(false);
+    if (v && v !== conv.title) onRename(conv.id, v);
+  };
 
   return (
-    <aside className="sidebar">
-      {/* ── Logo box ── */}
-      <div className="sidebar-logo-box">
-        <a className="sidebar-logo-link" href="#">
-          <div className="sidebar-logo-icon">
-            <Bot size={20} color="#0E0E14" />
-          </div>
-          <span className="sidebar-logo-text">ChatAI Pro</span>
-        </a>
-      </div>
+    <div
+      ref={ref}
+      id={`conv-${conv.id}`}
+      className={`sb-item ${active ? 'active' : ''} ${menu ? 'menu-open' : ''}`}
+      onClick={() => !editing && onSelect(conv.id)}
+      title={conv.title || t('untitled')}
+    >
+      {editing ? (
+        <input
+          className="sb-rename"
+          autoFocus
+          value={draft}
+          maxLength={120}
+          onChange={(e) => setDraft(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+        />
+      ) : (
+        <>
+          <span className="sb-item-title">{conv.title || t('untitled')}</span>
+          {conv.pinned && <Pin size={13} className="pin-ico" />}
+          <button
+            className="sb-item-more"
+            aria-label="Menu"
+            onClick={(e) => { e.stopPropagation(); setMenu((m) => !m); }}
+          >
+            <MoreVertical size={17} />
+          </button>
+        </>
+      )}
 
-      {/* ── Search ── */}
-      <div className="sidebar-search-wrap">
-        <div className="sidebar-search">
-          <Search size={15} className="sidebar-search-icon" />
-          <input
-            className="sidebar-search-input"
-            type="text"
-            placeholder="Search conversations…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      {menu && (
+        <div className="popover" role="menu" onClick={(e) => e.stopPropagation()}>
+          <button className="menu-item" onClick={() => { setMenu(false); onPin(conv); }}>
+            <span className="mi-icon">{conv.pinned ? <PinOff size={17} /> : <Pin size={17} />}</span>
+            {conv.pinned ? t('unpin') : t('pin')}
+          </button>
+          <button className="menu-item" onClick={startEdit}>
+            <span className="mi-icon"><Pencil size={17} /></span>
+            {t('rename')}
+          </button>
+          <button className="menu-item danger" onClick={() => { setMenu(false); onDelete(conv.id); }}>
+            <span className="mi-icon"><Trash2 size={17} /></span>
+            {t('delete')}
+          </button>
         </div>
-      </div>
+      )}
+    </div>
+  );
+}
 
-      {/* ── Scrollable inner ── */}
-      <div className="sidebar-scroll">
-        {/* New Chat */}
-        <button id="new-chat-btn" className="new-chat-btn" onClick={onNewChat}>
-          <Plus size={15} />
-          New Chat
-        </button>
+export function Sidebar({
+  conversations, activeConvId, collapsed, mobileOpen,
+  onToggleCollapse, onCloseMobile, onSelectConv, onNewChat, onDeleteConv, onRenameConv, onPinConv,
+}) {
+  const { t, lang, setLang } = useI18n();
+  const { mode, setMode } = useTheme();
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef(null);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  useClickOutside(settingsRef, closeSettings, settingsOpen);
 
-        {/* Section title */}
-        <div className="sidebar-section-title">Conversations</div>
+  const filtered = useMemo(
+    () => conversations.filter((c) => (c.title || '').toLowerCase().includes(query.toLowerCase())),
+    [conversations, query]
+  );
+  const groups = useMemo(() => groupConversations(filtered, t), [filtered, t]);
 
-        {/* Conversation list */}
-        <div className="sidebar-conversations">
-          {filtered.length === 0 && (
-            <div className="empty-list">
-              {searchQuery ? 'No results found.' : 'No conversations yet. Start a new chat!'}
+  const select = (id) => { onSelectConv(id); onCloseMobile?.(); };
+  const newChat = () => { onNewChat(); onCloseMobile?.(); };
+
+  return (
+    <>
+      {mobileOpen && <div className="sb-scrim" onClick={onCloseMobile} />}
+      <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`} aria-label="Sidebar">
+        <div className="sb-top">
+          <button
+            id="sidebar-toggle-btn"
+            className="icon-btn sb-collapse-btn"
+            onClick={onToggleCollapse}
+            title={collapsed ? t('expand') : t('collapse')}
+            aria-label={collapsed ? t('expand') : t('collapse')}
+          >
+            <Menu size={22} />
+          </button>
+          {mobileOpen && (
+            <button className="icon-btn mobile-only" onClick={onCloseMobile} aria-label="Close"><X size={22} /></button>
+          )}
+          {(!collapsed || mobileOpen) && (
+            <div className="sb-brand">
+              <Logo size={30} />
+              <span className="gradient-text">DGXAI</span>
             </div>
           )}
-          {filtered.map((conv) => (
-            <div
-              key={conv.id}
-              id={`conv-${conv.id}`}
-              className={`conv-item ${activeConvId === conv.id ? 'active' : ''}`}
-              onClick={() => onSelectConv(conv.id)}
-              title={conv.title || 'Untitled'}
-            >
-              <MessageSquare size={14} className="conv-item-icon" />
-              <span className="conv-item-text">
-                {conv.title || 'Untitled chat'}
-              </span>
-              <button
-                className="conv-delete-btn"
-                id={`delete-conv-${conv.id}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteConv(conv.id);
-                }}
-                title="Delete conversation"
-                aria-label="Delete conversation"
-              >
-                <Trash2 size={12} />
-              </button>
+        </div>
+
+        <button id="new-chat-btn" className="sb-newchat" onClick={newChat} title={t('newChat')}>
+          <SquarePen size={20} />
+          <span className="sb-label">{t('newChat')}</span>
+        </button>
+
+        {searching && !collapsed ? (
+          <div className="sb-search">
+            <Search size={18} />
+            <input
+              autoFocus
+              placeholder={t('searchPlaceholder')}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label={t('searchChats')}
+            />
+            <button className="icon-btn sm" onClick={() => { setSearching(false); setQuery(''); }} aria-label="Close search">
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            id="search-chats-btn"
+            className="sb-search-btn"
+            onClick={() => { if (collapsed) onToggleCollapse(); setSearching(true); }}
+            title={t('searchChats')}
+          >
+            <Search size={20} />
+            <span className="sb-label">{t('searchChats')}</span>
+          </button>
+        )}
+
+        <div className="sb-scroll">
+          {groups.length === 0 && (
+            <div className="sb-empty">{query ? t('noResults') : t('noChats')}</div>
+          )}
+          {groups.map((g) => (
+            <div key={g.key}>
+              <div className="sb-group-title">{g.title}</div>
+              {g.items.map((c) => (
+                <ConvItem
+                  key={c.id}
+                  conv={c}
+                  active={activeConvId === c.id}
+                  onSelect={select}
+                  onPin={onPinConv}
+                  onRename={onRenameConv}
+                  onDelete={onDeleteConv}
+                />
+              ))}
             </div>
           ))}
         </div>
-      </div>
 
-      {/* ── Bottom footer ── */}
-      <div className="sidebar-bot">
-        <div className="sidebar-download-btn">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M18 20.25V3.75C18 2.92 17.33 2.25 16.5 2.25L7.5 2.25C6.67 2.25 6 2.92 6 3.75L6 20.25C6 21.08 6.67 21.75 7.5 21.75H16.5C17.33 21.75 18 21.08 18 20.25Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M9 5.25H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Download app
+        <div className="sb-bottom" ref={settingsRef}>
+          {settingsOpen && (
+            <div className="popover sb-settings-pop" role="menu">
+              <div className="menu-label">{t('theme')}</div>
+              <div className="seg" role="radiogroup" aria-label={t('theme')}>
+                {[
+                  ['light', t('themeLight'), <Sun size={15} key="s" />],
+                  ['dark', t('themeDark'), <Moon size={15} key="m" />],
+                  ['system', t('themeSystem'), <Monitor size={15} key="d" />],
+                ].map(([val, label, icon]) => (
+                  <button key={val} className={mode === val ? 'on' : ''} onClick={() => setMode(val)} role="radio" aria-checked={mode === val} title={label}>
+                    {icon}
+                  </button>
+                ))}
+              </div>
+              <div className="menu-sep" />
+              <div className="menu-label">{t('language')}</div>
+              {[['vi', 'Tiếng Việt'], ['en', 'English']].map(([code, label]) => (
+                <button key={code} className="menu-item" onClick={() => setLang(code)}>
+                  <span className="mi-icon"><Globe size={17} /></span>
+                  {label}
+                  {lang === code && <Check size={17} className="mi-check" />}
+                </button>
+              ))}
+            </div>
+          )}
+          <button id="settings-btn" className="sb-settings-btn" onClick={() => setSettingsOpen((o) => !o)} aria-expanded={settingsOpen}>
+            <Settings size={20} />
+            <span className="sb-label">{t('settings')}</span>
+          </button>
         </div>
-
-        <div className="sidebar-social">
-          <a className="social-item" href="https://facebook.com" target="_blank" rel="noreferrer" title="Facebook">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
-          </a>
-          <a className="social-item" href="https://x.com" target="_blank" rel="noreferrer" title="X / Twitter">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          </a>
-          <a className="social-item" href="https://discord.com" target="_blank" rel="noreferrer" title="Discord">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/></svg>
-          </a>
-          <a className="social-item" href="https://telegram.org" target="_blank" rel="noreferrer" title="Telegram">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0a12 12 0 00-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
-          </a>
-        </div>
-
-        <div className="sidebar-copyright">©2026 ChatAI Pro. All Rights Reserved.</div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
