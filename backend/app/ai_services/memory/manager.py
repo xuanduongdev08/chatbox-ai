@@ -6,11 +6,18 @@ Strategy:
   2. When the message count exceeds SUMMARY_TRIGGER_COUNT, call a lightweight
      LLM to summarize the oldest batch, store the summary, and trim Redis.
   3. The summary is prepended as a "system" context block on each request.
+
+Fixes applied:
+  - _summarizer is a module-level singleton instead of per-instance to avoid
+    creating a new ChatOpenAI object on every request.
+  - Consistent chain pattern: summary_prompt | LLM — result.content is correct
+    since no StrOutputParser is appended (matches existing pattern).
 """
 from __future__ import annotations
 
 import json
 import logging
+from functools import lru_cache
 from typing import Dict, List, Optional
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
@@ -25,6 +32,18 @@ logger = logging.getLogger(__name__)
 REDIS_WINDOW_KEY = "chat:window:{conv_id}"
 REDIS_SUMMARY_KEY = "chat:summary:{conv_id}"
 REDIS_TTL = 60 * 60 * 24 * 7  # 7 days
+
+
+@lru_cache(maxsize=1)
+def _get_summarizer() -> ChatOpenAI:
+    """Module-level singleton for the summarizer LLM — created once, reused everywhere."""
+    return ChatOpenAI(
+        model=settings.openai_fallback_model,
+        api_key=settings.openai_api_key,
+        temperature=0,
+        timeout=30,
+        max_retries=1,
+    )
 
 
 def _msg_to_dict(msg: BaseMessage) -> Dict[str, str]:
@@ -49,11 +68,6 @@ class MemoryManager:
         self.conv_id = conversation_id
         self.window_key = REDIS_WINDOW_KEY.format(conv_id=conversation_id)
         self.summary_key = REDIS_SUMMARY_KEY.format(conv_id=conversation_id)
-        self._summarizer = ChatOpenAI(
-            model=settings.openai_fallback_model,
-            api_key=settings.openai_api_key,
-            temperature=0,
-        )
 
     async def add_messages(self, messages: List[BaseMessage]) -> None:
         """Append messages to the Redis sliding window."""
@@ -70,22 +84,25 @@ class MemoryManager:
         redis = await get_redis()
         raw = await redis.lrange(self.window_key, 0, -1)
         messages = [_dict_to_msg(json.loads(r)) for r in raw]
-        # Trim to last N
-        return messages[-settings.sliding_window_size:]
+        # Return only the most recent N messages
+        return messages[-settings.sliding_window_size :]
 
     async def get_summary(self) -> Optional[str]:
-        """Return the current conversation summary if one exists."""
+        """Return the current conversation summary string if one exists."""
         redis = await get_redis()
-        return await redis.get(self.summary_key)
+        value = await redis.get(self.summary_key)
+        # redis-py returns bytes or str depending on decode_responses setting
+        if isinstance(value, bytes):
+            return value.decode("utf-8")
+        return value
 
     async def _maybe_summarize(self) -> None:
-        """If window exceeds trigger count, summarize oldest half and trim."""
+        """If window exceeds trigger count, summarize the oldest half and trim."""
         redis = await get_redis()
         count = await redis.llen(self.window_key)
         if count < settings.summary_trigger_count:
             return
 
-        # Take the oldest batch to summarize
         batch_size = settings.summary_trigger_count // 2
         raw_batch = await redis.lrange(self.window_key, 0, batch_size - 1)
         msgs = [_dict_to_msg(json.loads(r)) for r in raw_batch]
@@ -95,23 +112,24 @@ class MemoryManager:
         )
 
         try:
-            chain = summary_prompt | self._summarizer
+            summarizer = _get_summarizer()
+            chain = summary_prompt | summarizer
             result = await chain.ainvoke({"history": history_text})
-            new_summary = result.content
+            new_summary: str = result.content  # AIMessage.content — correct without StrOutputParser
 
-            # Prepend to existing summary
-            existing = await redis.get(self.summary_key) or ""
+            existing = await self.get_summary() or ""
             combined = (existing + "\n\n" + new_summary).strip()
 
             pipe = redis.pipeline()
             pipe.set(self.summary_key, combined, ex=REDIS_TTL)
-            # Remove the summarized messages
             for _ in range(batch_size):
                 pipe.lpop(self.window_key)
             await pipe.execute()
-            logger.info("Summarized %d messages for conv %s", batch_size, self.conv_id)
+            logger.info(
+                "Summarized %d messages for conversation %s", batch_size, self.conv_id
+            )
         except Exception as exc:
-            logger.error("Summarization failed: %s", exc)
+            logger.error("Summarization failed for %s: %s", self.conv_id, exc)
 
     async def clear(self) -> None:
         """Delete all memory for this conversation."""

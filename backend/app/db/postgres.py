@@ -1,4 +1,13 @@
+"""
+PostgreSQL async engine, session factory, and ORM base.
+
+Fix applied:
+  - get_db return type annotation corrected from AsyncSession (wrong, it's a
+    generator) to AsyncGenerator[AsyncSession, None].
+"""
 from __future__ import annotations
+
+from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -30,7 +39,7 @@ class Base(DeclarativeBase):
 
 
 # ─── Dependency helper ─────────────────────────────────────────────────────────
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency that yields an async DB session."""
     async with AsyncSessionLocal() as session:
         try:

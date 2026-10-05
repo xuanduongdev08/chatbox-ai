@@ -1,16 +1,20 @@
 /**
- * MessageInput – Textarea + file attachment + send button.
- * Auto-expands with content and supports Shift+Enter for newlines.
+ * MessageInput – Textarea + file attachment + send/stop button.
+ *
+ * UI mirrors the AIZOX chat input bar:
+ *   - Surface background, Line border, rounded-xl pill shape
+ *   - Primary green send button
+ *   - Red stop button when streaming
+ *   - Auto-expands with content (Shift+Enter for newlines)
  */
 import { useRef, useState, useEffect } from 'react';
-import { Send, Paperclip, Square, Mic } from 'lucide-react';
+import { Send, Paperclip, Square } from 'lucide-react';
 
 export function MessageInput({ onSend, onFileUpload, isStreaming, onCancel }) {
   const [text, setText] = useState('');
   const textareaRef = useRef(null);
-  const fileInputRef = useRef(null);
 
-  // Auto-resize textarea
+  // Auto-resize textarea to fit content
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -45,10 +49,13 @@ export function MessageInput({ onSend, onFileUpload, isStreaming, onCancel }) {
     <div className="input-area">
       <div className="input-wrapper">
         {/* File attachment */}
-        <label className="file-label icon-btn" title="Attach document (PDF, TXT, DOCX)">
+        <label
+          className="file-label icon-btn"
+          title="Attach document (PDF, TXT, DOCX)"
+          aria-label="Attach file"
+        >
           <Paperclip size={16} />
           <input
-            ref={fileInputRef}
             type="file"
             accept=".pdf,.txt,.docx,.doc"
             onChange={handleFileChange}
@@ -56,7 +63,7 @@ export function MessageInput({ onSend, onFileUpload, isStreaming, onCancel }) {
           />
         </label>
 
-        {/* Textarea */}
+        {/* Auto-expanding textarea */}
         <textarea
           ref={textareaRef}
           id="message-input"
@@ -66,18 +73,18 @@ export function MessageInput({ onSend, onFileUpload, isStreaming, onCancel }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
-          disabled={false}
+          aria-label="Message input"
         />
 
-        {/* Actions */}
+        {/* Send / Stop button */}
         <div className="input-actions">
           {isStreaming ? (
             <button
               id="cancel-stream-btn"
-              className="send-btn"
+              className="stop-btn"
               onClick={onCancel}
               title="Stop generation"
-              style={{ background: 'var(--danger)' }}
+              aria-label="Stop generation"
             >
               <Square size={14} />
             </button>
@@ -88,12 +95,14 @@ export function MessageInput({ onSend, onFileUpload, isStreaming, onCancel }) {
               onClick={handleSend}
               disabled={!text.trim()}
               title="Send message"
+              aria-label="Send message"
             >
-              <Send size={14} />
+              <Send size={15} />
             </button>
           )}
         </div>
       </div>
+
       <div className="input-hint">
         ChatAI Pro may make mistakes. Verify important information.
       </div>

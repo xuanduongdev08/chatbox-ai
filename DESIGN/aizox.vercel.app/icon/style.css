@@ -1,0 +1,186 @@
+@font-face {
+  font-family: 'icomoon';
+  src:  url('fonts/icomoon.eot?6k70c1');
+  src:  url('fonts/icomoon.eot?6k70c1#iefix') format('embedded-opentype'),
+    url('fonts/icomoon.ttf?6k70c1') format('truetype'),
+    url('fonts/icomoon.woff?6k70c1') format('woff'),
+    url('fonts/icomoon.svg?6k70c1#icomoon') format('svg');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+[class^="icon-"], [class*=" icon-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'icomoon' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-moon:before {
+  content: "\e90d";
+}
+.icon-house-line:before {
+  content: "\e900";
+}
+.icon-notebook:before {
+  content: "\e901";
+}
+.icon-ArrowUp:before {
+  content: "\e902";
+}
+.icon-ArrowsOut:before {
+  content: "\e903";
+}
+.icon-BellSimple:before {
+  content: "\e904";
+}
+.icon-CaretDown:before {
+  content: "\e905";
+}
+.icon-CaretLeft:before {
+  content: "\e906";
+}
+.icon-chat:before {
+  content: "\e907";
+}
+.icon-Faders:before {
+  content: "\e908";
+}
+.icon-CheckCircle:before {
+  content: "\e909";
+}
+.icon-CloudArrowUp:before {
+  content: "\e90a";
+}
+.icon-Copy:before {
+  content: "\e90b";
+}
+.icon-CurrencyCircleDollar:before {
+  content: "\e90c";
+}
+.icon-DiscordLogo:before {
+  content: "\e90e";
+}
+.icon-DownloadSimple:before {
+  content: "\e90f";
+}
+.icon-EnvelopeSimple:before {
+  content: "\e910";
+}
+.icon-Export:before {
+  content: "\e911";
+}
+.icon-Eye:before {
+  content: "\e912";
+}
+.icon-FacebookLogo:before {
+  content: "\e913";
+}
+.icon-arrow-right:before {
+  content: "\e914";
+}
+.icon-Flag:before {
+  content: "\e915";
+}
+.icon-GlobeSimple:before {
+  content: "\e916";
+}
+.icon-code-solid:before {
+  content: "\e917";
+}
+.icon-image:before {
+  content: "\e918";
+}
+.icon-Info:before {
+  content: "\e919";
+}
+.icon-LockKey:before {
+  content: "\e91a";
+}
+.icon-MapPin:before {
+  content: "\e91b";
+}
+.icon-web:before {
+  content: "\e91c";
+}
+.icon-Plus:before {
+  content: "\e91d";
+}
+.icon-question:before {
+  content: "\e91e";
+}
+.icon-SealQuestion:before {
+  content: "\e91f";
+}
+.icon-Share:before {
+  content: "\e920";
+}
+.icon-ShareFat:before {
+  content: "\e921";
+}
+.icon-SignOut:before {
+  content: "\e922";
+}
+.icon-Star:before {
+  content: "\e923";
+}
+.icon-Star-fill:before {
+  content: "\e924";
+}
+.icon-Sun:before {
+  content: "\e925";
+}
+.icon-TelegramLogo:before {
+  content: "\e926";
+}
+.icon-ThumbsDown:before {
+  content: "\e927";
+}
+.icon-ThumbsUp:before {
+  content: "\e928";
+}
+.icon-Trash:before {
+  content: "\e929";
+}
+.icon-UserCircle:before {
+  content: "\e92a";
+}
+.icon-video:before {
+  content: "\e92b";
+}
+.icon-X:before {
+  content: "\e92c";
+}
+.icon-XCircle:before {
+  content: "\e92d";
+}
+.icon-XLogo:before {
+  content: "\e92e";
+}
+.icon-Archive:before {
+  content: "\e92f";
+}
+.icon-ArrowsClockwise:before {
+  content: "\e930";
+}
+.icon-check:before {
+  content: "\e931";
+}
+.icon-search:before {
+  content: "\e949";
+}
+.icon-eye:before {
+  content: "\e97c";
+}
+.icon-eye-off:before {
+  content: "\e97d";
+}

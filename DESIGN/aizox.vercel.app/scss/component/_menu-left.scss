@@ -1,0 +1,235 @@
+
+.layout-wrap {
+    .section-menu-left {
+        position: fixed;
+        width: 300px;
+        min-width: 300px;
+        height: 100%;
+        left: 0;
+        z-index: 20;
+        padding-top: 81px;
+        padding-bottom: 143px;
+        @include flex(center,start);
+        flex-direction: column;
+        flex-shrink: 0;
+        @include transition3;
+        background: var(--DarkSurface);
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        > .box-logo {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 30;
+            padding: 24px;
+            width: 300px;
+            @include flex(center,space-between);
+            @include transition3;
+            z-index: 6;
+        }
+        .section-menu-left-wrap {
+            padding: 0 24px;
+            width: 100%;
+            overflow-y: auto;
+            position: relative;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            &::-webkit-scrollbar {
+                width: 0px;
+                height: 0;
+            }
+            &::-webkit-scrollbar-thumb {
+                background: var(--Note);
+                border-radius: 10px;
+            }
+        }
+        .center {
+            display: flex;
+            flex-direction: column;
+            gap: 17px;
+            padding-bottom: 6px;
+            width: 100%;
+            flex-grow: 1;
+        }
+        .menu-item {
+            position: relative;
+            a {
+                position: relative;
+                @include flex(center,start);
+                gap: 12px;
+                padding: 10px 12px;
+                border-radius: 12px;
+                .icon {
+                    display: flex;
+                    width: 24px;
+                    height: 24px;
+                    place-content: center;
+                    svg path {
+                        @include transition3;
+                    }
+                    i {
+                        font-size: 24px;
+                        color: var(--OnSurface);
+                        @include transition3;
+                    }
+                }
+                .text {
+                    color: var(--OnSurface);
+                    font-size: 16px;
+                    font-weight: 500;
+                    line-height: 28px;
+                    text-transform: capitalize;
+                    white-space: nowrap;
+                    @include transition3;
+                }
+            }
+            >a {
+                &:hover,
+                &.active {
+                    background-color: var(--Surface);
+                }
+            }
+            &.has-children {
+                position: relative;
+                transition-delay: 0.3s;
+                &::after {
+                    position: absolute;
+                    content: '\e905';
+                    top: 12px;
+                    right: 16px;
+                    color: var(--OnSurface);
+                    font-size: 20px;
+                    font-family: $fontIcon;
+                    @include transition3;
+                    cursor: pointer;
+                }
+            }
+            &.active {
+                &:not(.has-children) {
+                    > a {
+                        background-color: var(--Surface);
+                    }
+                }
+                > .sub-menu {
+                    display: block;
+                }
+                &.has-children {
+                    &::after {
+                        transform: rotate(180deg);
+                    }
+                }
+            }
+        }
+        .sub-menu {
+            display: none;
+            overflow-x: auto;
+            padding: 10px 0;
+            &::-webkit-scrollbar {
+                width: 3px;
+            }
+            .sub-menu-item {
+                position: relative;
+                padding: 8px 0 8px 44px;
+                .text {
+                    font-weight: 500;
+                    font-size: 14px;
+                    line-height: 24px;
+                }
+                &:hover,
+                &.active {
+                    a {
+                        &::before {
+                            border-color: var(--Primary);
+                            background-color: var(--Primary);
+                        }
+                    }
+                }
+            }
+            a {
+                padding: 0;
+                position: relative;
+                &::before {
+                    position: absolute;
+                    content: '';
+                    top: 50%;
+                    transform: translateY(-50%);
+                    left: -16px;
+                    width: 8px;
+                    height: 8px;
+                    border: 1px solid var(--Secondary);
+                    border-radius: 50%;
+                    @include transition3;
+                }
+             
+            }
+        }
+        .center-heading {
+            color: var(--Secondary);
+            font-size: 12px;
+            line-height: 20px;
+            font-weight: 700;
+            letter-spacing: 1.1px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        a {
+            position: relative;
+            img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+        }
+        .bot {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            display: grid;
+            gap: 12px;
+            width: 300px;
+            padding: 12px 24px 30px;
+            background-color: var(--DarkSurface);
+            border-top: 1px solid var(--Line);
+            @include transition3;
+        }
+    }
+    &.full-width {
+        .section-menu-left {
+            left: -300px;
+            > .box-logo {
+                left: -300px;
+                border-bottom: 0;
+            }
+        }
+        .bot {
+            left: -300px;
+        }
+        .button-show-hide {
+            @include d-flex();
+        }
+    }
+}
+
+.button-show-hide {
+    position: relative;
+    @include flex(center,center);
+    font-size: 20px;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    border: 1px solid var(--Line);
+    background-color: var(--Surface);
+    cursor: pointer;
+    transition: all 0.3s, background 0s ease;
+    i {
+        @include transition3;
+    }
+    &:hover {
+        i {
+            color: var(--Secondary);
+        }
+    }
+}

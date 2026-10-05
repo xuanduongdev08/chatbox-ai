@@ -1,0 +1,48 @@
+.noUi-target {
+    border: 0;
+    height: 28px;
+    background: transparent;
+    box-shadow: none;
+}
+
+.noUi-base {
+    .noUi-connects {
+        border-radius: 8px;
+        background-color: var(--DarkSurface);
+        border: 1px solid var(--Line);
+    }
+}
+.noUi-connect {
+    background-color: #2A2839;
+}
+
+.noUi-horizontal .noUi-handle,
+.noUi-vertical .noUi-handle {
+    top: 1px;
+    right: 0 !important;
+    height: 26px;
+    width: 5px;
+    border-radius: 0;
+    border: 0;
+    background-color: var(--Primary);
+    box-shadow: unset;
+    cursor: pointer;
+    &::before,
+    &::after {
+        content: none;
+    }
+}
+.slider-tooltip-default {
+    .noUi-tooltip {
+        border-radius: 8px;
+        border-color: var(--line);
+        line-height: 14px;
+        margin-bottom: 4px;
+        &::after {
+            content: "Km";
+        }
+    }
+}
+
+
+

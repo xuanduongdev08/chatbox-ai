@@ -1,0 +1,94 @@
+.header-dashboard {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: calc(100% - 300px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 30px;
+    background: var(--DarkSurface);
+    z-index: 18;
+    transition: all 0.3s, background 0s ease;
+    .header-grid {
+        @include d-flex;
+        align-items: center;
+        gap: 24px;
+        > .divider {
+            width: 1px;
+            height: 28px;
+            background: var(--Line);
+        }
+        > .setting {
+            width: 24px;
+            @include flex(center,center);
+            font-size: 24px;
+            i {
+                animation-name: spin;
+                animation-duration: 3s;
+                animation-iteration-count: infinite;
+                animation-timing-function: linear;
+            }
+        }
+    }
+    .button-show-hide {
+        transform: rotate(180deg);
+        display: none;
+    }
+    .header-item {
+        position: relative;
+        @include flex(center,center);
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1px solid var(--Line);
+        background: transparent;
+        box-shadow: none !important;
+        cursor: pointer;
+        i {
+            font-size: 24px;
+            color: var(--OnSurface);
+        }
+        &.country {
+            > .dropdown {
+                > .dropdown-menu.show {
+                    margin-top: 19px !important;
+                }
+            }
+        }
+    }
+    .header-user {
+        display: flex;
+        width: 44px;
+        height: 44px;
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+    }
+}
+
+.wg-user {
+    @include flex(center,start);
+    gap: 18px;
+    .image {
+        width: 72px;
+        height: 72px;
+        flex-shrink: 0;
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+    }
+    .name {
+        margin-bottom: 4px;
+        color: var(--OnSurface);
+    }
+    .sub {
+        color: var(--OnSurface);
+    }
+}

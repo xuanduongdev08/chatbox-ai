@@ -1,0 +1,84 @@
+.tf-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 27px;
+    color: #0E0E14;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 26px;
+    border: 1px solid #31F8A3;
+    border-radius: 8px;
+    background-color: #31F8A3;
+    @include transition3();
+    cursor: pointer;
+    .icon {
+        font-size: 24px;
+    }
+    &:hover {
+        background-color: transparent;
+        color: #31F8A3;
+    }
+    i {
+        font-size: 20px;
+    }
+    
+    &.px-40 {
+        padding-left: 40px;
+        padding-right: 40px;
+    }
+    &.w230 {
+        width: 230px;
+    }
+    &.w180 {
+        width: 180px;
+    }
+    &.w128 {
+        width: 128px;
+    }
+    &.w380 {
+        width: 380px;
+    }
+}
+
+.tf-btn-2 {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 8px;
+    border: 1px solid var(--Primary);
+    border-radius: 8px;
+    @include transition3();
+    cursor: pointer;
+}
+
+.tf-btn-3 {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 11px;
+    border: 1px solid var(--Line);
+    border-radius: 8px;
+    @include transition3();
+    cursor: pointer;
+    .icon {
+        color: var(--OnSurface);
+        font-size: 24px;
+    }
+    &:hover {
+        background-color: var(--Line);
+    }
+}
+
+.tf-btn-4 {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    padding: 11px;
+    border-radius: 8px;
+    background-color: var(--Line);
+}

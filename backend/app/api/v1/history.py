@@ -1,8 +1,13 @@
 """
 Conversation History API
-GET  /api/v1/history/              – List all conversations for current user
-GET  /api/v1/history/{conv_id}     – Get conversation with all messages
-DELETE /api/v1/history/{conv_id}   – Delete a conversation
+GET    /api/v1/history/          – List all conversations for current user
+GET    /api/v1/history/{conv_id} – Get conversation with all messages
+DELETE /api/v1/history/{conv_id} – Delete a conversation
+
+Fixes applied:
+  - message_count is now computed via a real SQL COUNT subquery so it always
+    reflects actual DB rows, not a stale column that was never incremented.
+  - list_conversations returns proper ConversationOut objects with real counts.
 """
 from __future__ import annotations
 
@@ -10,7 +15,7 @@ import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,15 +34,36 @@ async def list_conversations(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return paginated list of user's conversations, newest first."""
+    """Return paginated list of user's conversations with real message counts, newest first."""
+    # Subquery: count messages per conversation
+    msg_count_sq = (
+        select(
+            Message.conversation_id,
+            func.count(Message.id).label("real_message_count"),
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+
     result = await db.execute(
-        select(Conversation)
+        select(
+            Conversation,
+            func.coalesce(msg_count_sq.c.real_message_count, 0).label("message_count"),
+        )
+        .outerjoin(msg_count_sq, Conversation.id == msg_count_sq.c.conversation_id)
         .where(Conversation.user_id == uuid.UUID(user_id))
         .order_by(Conversation.updated_at.desc())
         .limit(limit)
         .offset(offset)
     )
-    return result.scalars().all()
+
+    rows = result.all()
+    # Patch message_count onto each Conversation object before Pydantic serialises it
+    convs = []
+    for conv, real_count in rows:
+        conv.message_count = real_count
+        convs.append(conv)
+    return convs
 
 
 @router.get("/{conv_id}", response_model=ConversationDetail)
@@ -46,7 +72,7 @@ async def get_conversation(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return a single conversation with all its messages."""
+    """Return a single conversation with all its messages, ordered chronologically."""
     result = await db.execute(
         select(Conversation)
         .options(selectinload(Conversation.messages))
@@ -57,7 +83,13 @@ async def get_conversation(
     )
     conv = result.scalar_one_or_none()
     if conv is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+    # Sort messages chronologically (selectinload doesn't guarantee order)
+    if conv.messages:
+        conv.messages.sort(key=lambda m: m.created_at)
     return conv
 
 
@@ -76,7 +108,10 @@ async def delete_conversation(
     )
     conv = result.scalar_one_or_none()
     if conv is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
 
     await db.delete(conv)
     await db.commit()

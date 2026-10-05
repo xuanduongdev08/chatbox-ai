@@ -1,0 +1,115 @@
+.light-theme {
+
+    --OnSurface: #0E0E14;
+    --Surface: #F6F6F6;
+    --DarkSurface: #FFFFFF;
+    --Line: #3030301a;
+
+    .noUi-connect {
+        background-color: #504f5b;
+    }
+
+    .banner-box {
+        a,
+        .title {
+            color: var(--DarkSurface);
+        }
+    }
+
+    .tf-check::before {
+        color: #fff;
+    }
+
+    .button-dark-light {
+        i {
+            &::before {
+                content: '\e90d';
+            }
+        }
+    }
+
+    .select {
+        &::after {
+            color: #fff;
+        }
+        select {
+            background-color: #30303080;
+            color: #fff;
+        }
+    }
+
+    .form-search {
+        .button-submit {
+            button {
+                color: var(--OnSurface);
+            }
+        }
+    }
+
+    form {
+        textarea,
+        input {
+            color: var(--OnSurface);
+            border: 1px solid rgba(48, 48, 48, 0.1019607843);
+            &::placeholder {
+                color: var(--OnSurface);
+            }
+        }
+    }
+
+    .header-dashboard {
+        .wrap {
+            .header-item {
+                background: #CBD5E11A;
+
+                &.country {
+                    .image-select .dropdown-toggle {
+                        background: #CBD5E11A;
+                    }
+                }
+            }
+            .header-left .button-show-hide {
+                background-color: rgba(255, 255, 255, 0.0588235294);
+                i {
+                    color: #fff;
+                }
+                &:hover i {
+                    color: var(--Secondary);
+                }
+            }
+        }
+    }
+
+    .setting i {
+        color: var(--Main-Dark);
+    }
+
+    .section-menu-left {
+        .menu-item {
+            a {
+                svg path {
+                    stroke: var(--OnSurface);
+
+                }
+            }
+        }
+        .bot {
+            svg path {
+                stroke: var(--OnSurface);
+            }
+        }
+    }
+
+    .button-show-hide:hover i {
+        color: var(--Primary);
+    }
+
+    .tf-button {
+        &:hover {
+            background-color: var(--OnSurface);
+            border-color: var(--OnSurface);
+            color: var(--DarkSurface);
+        }
+    }
+
+}

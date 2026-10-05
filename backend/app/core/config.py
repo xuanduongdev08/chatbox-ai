@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     openai_primary_model: str = "gpt-4o"
     openai_fallback_model: str = "gpt-4o-mini"
 
+    # ── Groq (free-tier alternative, OpenAI-compatible) ───────────────────
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+
+    # ── LLM Provider: "openai" or "groq" ─────────────────────────────────
+    llm_provider: str = "openai"
+
     # ── PostgreSQL ────────────────────────────────────────────────────────
     postgres_url: str = "postgresql+asyncpg://chatbot:chatbotpass@postgres:5432/chatbot_db"
 

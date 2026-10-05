@@ -1,0 +1,41 @@
+.wg-table {
+    overflow-x: auto !important;
+    &::-webkit-scrollbar {
+        height: 8px; 
+    }
+    &::-webkit-scrollbar-thumb {
+        background: var(--Secondary);
+        border-radius: 0px;
+    }
+    &::-webkit-scrollbar-track {
+        background: var(--Line);
+    }
+    .table-title {
+        padding: 12px 0;
+    }
+    > * {
+        min-width: 960px;
+    }
+    li,
+    ul.table-title {
+        justify-content: space-between;
+        > * {
+            width: 200px;
+            &:nth-child(1) {
+                width: 400px;
+            }
+            &:nth-child(2),
+            &:nth-child(3) {
+                justify-content: center;
+                text-align: center;
+            }
+        }
+    }
+    ul.content li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--Line);
+    }
+}

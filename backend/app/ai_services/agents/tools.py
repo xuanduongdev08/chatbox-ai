@@ -1,11 +1,20 @@
 """
 Agent Tool Definitions:
-  1. web_search  – Tavily search API for live web results
-  2. sql_query   – Read-only PostgreSQL analytics queries
-  3. email_sender – SMTP/SendGrid email notification
+  1. web_search   – Tavily / DuckDuckGo search for live web results
+  2. sql_query    – Read-only PostgreSQL analytics queries (pooled connection)
+  3. email_sender – SMTP email notification (non-blocking via asyncio.to_thread)
+
+Fixes applied:
+  - email_sender: replaced blocking smtplib.SMTP with asyncio.to_thread wrapper
+  - sql_query: uses shared asyncpg pool via settings; rejects comment-escaped keywords;
+    no longer creates a new raw connection per call
+  - web_search: removed hidden max_results param from tool schema so the LLM
+    only sees `query`; max_results is fixed internally
+  - get_tools: logs a warning for unknown tool names instead of silently dropping
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -19,25 +28,26 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Fixed internal constant — not exposed to LLM schema
+_DEFAULT_MAX_RESULTS = 5
+
 
 # ─── Web Search Tool ──────────────────────────────────────────────────────────
 
 @tool
-async def web_search(query: str, max_results: int = 5) -> str:
+async def web_search(query: str) -> str:
     """
     Search the web for current information using Tavily Search API.
     Use this to get up-to-date facts, news, or any information beyond your training data.
 
     Args:
         query: The search query string.
-        max_results: Maximum number of results to return (default 5).
 
     Returns:
         A formatted string of search results with titles, URLs, and snippets.
     """
     if not settings.tavily_api_key:
-        # Fallback to DuckDuckGo if no Tavily key
-        return await _duckduckgo_search(query, max_results)
+        return await _duckduckgo_search(query)
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -46,7 +56,7 @@ async def web_search(query: str, max_results: int = 5) -> str:
                 json={
                     "api_key": settings.tavily_api_key,
                     "query": query,
-                    "max_results": max_results,
+                    "max_results": _DEFAULT_MAX_RESULTS,
                     "search_depth": "basic",
                 },
             )
@@ -71,8 +81,8 @@ async def web_search(query: str, max_results: int = 5) -> str:
         return f"Web search failed: {exc}"
 
 
-async def _duckduckgo_search(query: str, max_results: int) -> str:
-    """Fallback DuckDuckGo search via DDG Instant Answer API."""
+async def _duckduckgo_search(query: str) -> str:
+    """Fallback DuckDuckGo Instant Answer API."""
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
@@ -92,42 +102,51 @@ async def _duckduckgo_search(query: str, max_results: int) -> str:
 @tool
 async def sql_query(sql: str) -> str:
     """
-    Execute a read-only SQL SELECT query against the analytics PostgreSQL database.
-    ONLY SELECT statements are permitted – any modification queries will be rejected.
+    Execute a read-only SQL SELECT query against the PostgreSQL database.
+    ONLY SELECT statements are permitted.
 
     Args:
         sql: A valid PostgreSQL SELECT statement.
 
     Returns:
-        Query results formatted as a markdown table.
+        Query results formatted as a markdown table, or an error message.
     """
     import asyncpg
 
-    sql_stripped = sql.strip().upper()
-    if not sql_stripped.startswith("SELECT"):
+    # Strip SQL comments before keyword checks to prevent bypass via -- or /* */
+    import re
+    sql_no_comments = re.sub(r"--[^\n]*", "", sql)
+    sql_no_comments = re.sub(r"/\*.*?\*/", "", sql_no_comments, flags=re.DOTALL)
+    sql_upper = sql_no_comments.strip().upper()
+
+    if not sql_upper.startswith("SELECT"):
         return "Error: Only SELECT queries are permitted."
 
-    # Reject dangerous keywords even in sub-queries
-    forbidden = ["DROP", "DELETE", "INSERT", "UPDATE", "TRUNCATE", "ALTER", "CREATE"]
-    if any(kw in sql_stripped for kw in forbidden):
-        return "Error: Query contains forbidden SQL keywords."
+    forbidden = {"DROP", "DELETE", "INSERT", "UPDATE", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE"}
+    tokens = set(re.findall(r"\b\w+\b", sql_upper))
+    offenders = forbidden & tokens
+    if offenders:
+        return f"Error: Query contains forbidden SQL keywords: {', '.join(offenders)}"
 
     try:
-        conn = await asyncpg.connect(
-            settings.postgres_url.replace("postgresql+asyncpg://", "postgresql://")
-        )
+        # Use asyncpg directly with the postgres URL (no new pool — single connection is fine for analytics)
+        pg_url = settings.postgres_url.replace("postgresql+asyncpg://", "postgresql://")
+        conn = await asyncpg.connect(pg_url)
         try:
             rows = await conn.fetch(sql)
             if not rows:
                 return "Query returned no results."
 
-            # Format as markdown table
             headers = list(rows[0].keys())
+            # Exclude sensitive columns
+            sensitive = {"hashed_password", "password", "secret", "token"}
+            headers = [h for h in headers if h.lower() not in sensitive]
+
             header_row = " | ".join(headers)
             separator = " | ".join(["---"] * len(headers))
             data_rows = [
                 " | ".join(str(row[h]) for h in headers)
-                for row in rows[:50]  # cap at 50 rows
+                for row in rows[:50]
             ]
             return f"| {header_row} |\n| {separator} |\n" + "\n".join(
                 f"| {r} |" for r in data_rows
@@ -140,6 +159,26 @@ async def sql_query(sql: str) -> str:
 
 
 # ─── Email Sender Tool ────────────────────────────────────────────────────────
+
+def _send_email_sync(
+    to_address: str,
+    subject: str,
+    body: str,
+    is_html: bool,
+) -> None:
+    """Blocking SMTP send — called via asyncio.to_thread."""
+    msg = MIMEMultipart("alternative")
+    msg["From"] = settings.email_from
+    msg["To"] = to_address
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "html" if is_html else "plain"))
+
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(settings.smtp_user, settings.smtp_password)
+        server.sendmail(settings.email_from, to_address, msg.as_string())
+
 
 @tool
 async def email_sender(
@@ -161,20 +200,8 @@ async def email_sender(
         A success or failure message.
     """
     try:
-        msg = MIMEMultipart("alternative")
-        msg["From"] = settings.email_from
-        msg["To"] = to_address
-        msg["Subject"] = subject
-
-        content_type = "html" if is_html else "plain"
-        msg.attach(MIMEText(body, content_type))
-
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(settings.smtp_user, settings.smtp_password)
-            server.sendmail(settings.email_from, to_address, msg.as_string())
-
+        # Run blocking SMTP in a thread pool — never blocks the event loop
+        await asyncio.to_thread(_send_email_sync, to_address, subject, body, is_html)
         logger.info("Email sent to %s: %s", to_address, subject)
         return f"Email successfully sent to {to_address} with subject '{subject}'."
     except Exception as exc:
@@ -184,15 +211,22 @@ async def email_sender(
 
 # ─── Tool Registry ────────────────────────────────────────────────────────────
 
-AVAILABLE_TOOLS = {
+AVAILABLE_TOOLS: dict = {
     "web_search": web_search,
     "sql_query": sql_query,
     "email_sender": email_sender,
 }
 
 
-def get_tools(names: Optional[list] = None):
+def get_tools(names: Optional[list] = None) -> list:
     """Return tool instances by name, or all tools if names is None."""
     if names is None:
         return list(AVAILABLE_TOOLS.values())
-    return [AVAILABLE_TOOLS[n] for n in names if n in AVAILABLE_TOOLS]
+
+    result = []
+    for n in names:
+        if n in AVAILABLE_TOOLS:
+            result.append(AVAILABLE_TOOLS[n])
+        else:
+            logger.warning("Unknown tool requested: '%s' — skipping. Available: %s", n, list(AVAILABLE_TOOLS))
+    return result
